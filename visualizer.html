@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>3D Audio Visualizer</title>
+  <script src="https://unpkg.com/three@0.154.0/build/three.min.js"></script>
+</head>
+<body style="margin:0; padding:0; overflow:hidden;">
+  <div id="app"></div>
+  <script>
+    // --------------------
+    // 1. Basic Three.js Setup
+    // --------------------
+    const container = document.getElementById('app');
+    const scene = new THREE.Scene();
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(
+      60,  // Field of View
+      window.innerWidth / window.innerHeight, // Aspect Ratio
+      0.1, // Near
+      1000 // Far
+    );
+    camera.position.z = 30;
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    // Handle window resizing
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // --------------------
+    // 2. Lighting (optional, for better visibility)
+    // --------------------
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 10, 10);
+    scene.add(directionalLight);
+
+    // --------------------
+    // 3. Audio setup
+    // --------------------
+    const listener = new THREE.AudioListener();
+    camera.add(listener);
+
+    const sound = new THREE.Audio(listener);
+    const audioLoader = new THREE.AudioLoader();
+
+    // Load an audio file from a public URL
+    audioLoader.load(
+      'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      function(buffer) {
+        sound.setBuffer(buffer);
+        sound.setLoop(true);
+        sound.setVolume(0.5);
+        // Autoplay attempt (may require user gesture in some browsers)
+        sound.play();
+      },
+      // onProgress callback
+      function(xhr) {
+        console.log( (xhr.loaded / xhr.total * 100) + '% loaded' );
+      },
+      // onError callback
+      function(err) {
+        console.error('An error occurred while loading the audio', err);
+      }
+    );
+
+    // Create an analyser
+    const analyser = new THREE.AudioAnalyser(sound, 128);
+
+    // --------------------
+    // 4. Create bars (example in a circular layout)
+    // --------------------
+    const numBars = 32;
+    const bars = [];
+
+    for (let i = 0; i < numBars; i++) {
+      const geometry = new THREE.BoxGeometry(0.5, 1, 0.5);
+      const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+      const bar = new THREE.Mesh(geometry, material);
+
+      // Position bars in a circle
+      const angle = (i / numBars) * Math.PI * 2;
+      const radius = 10;
+      bar.position.x = Math.cos(angle) * radius;
+      bar.position.z = Math.sin(angle) * radius;
+      bar.lookAt(new THREE.Vector3(0, 0, 0));
+
+      bars.push(bar);
+      scene.add(bar);
+    }
+
+    // --------------------
+    // 5. Animation Loop
+    // --------------------
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Get frequency data
+      const data = analyser.getFrequencyData();
+
+      // Update bar scales and colors
+      for (let i = 0; i < bars.length; i++) {
+        const freq = data[i % data.length];
+        const scale = freq / 20;
+        bars[i].scale.y = Math.max(scale, 0.1);
+
+        // Change color using HSL
+        const hue = freq / 255;
+        bars[i].material.color.setHSL(hue, 1, 0.5);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
